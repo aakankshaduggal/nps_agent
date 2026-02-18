@@ -1,5 +1,16 @@
+"""
+NPS Agent - MLflow deployment wrapper.
+
+This module wraps the shared agent core (nps_agent_core.py) for deployment
+via MLflow's ResponsesAgent HTTP API.
+
+The core agent logic is imported from ../nps_agent_core.py to avoid duplication
+with the development notebooks.
+"""
+
 import asyncio
-import os
+import sys
+from pathlib import Path
 
 import nest_asyncio
 nest_asyncio.apply()
@@ -7,55 +18,29 @@ nest_asyncio.apply()
 from dotenv import load_dotenv
 load_dotenv()
 
+# Add parent directory to path so we can import the shared module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import mlflow
 from mlflow.models import set_model
 from mlflow.pyfunc import ResponsesAgent
 from mlflow.types.responses import ResponsesAgentRequest, ResponsesAgentResponse
 
-from openai import AsyncClient
-from agents import Agent, Runner, set_default_openai_client
-from agents.mcp import MCPServerStdio
-
-# ---------------------------------------------------------------------------
-# Create an NPS Agent  (same pattern as 1_develop/2_evaluate.ipynb)
-# ---------------------------------------------------------------------------
-AGENT_INSTRUCTIONS = (
-    "You are a helpful National Parks Service assistant. "
-    "Use the available tools to answer questions about national parks, "
-    "events, activities, campgrounds, and visitor information. "
-)
-
-
-async def run_nps_agent(prompt) -> str:
-    """Run the NPS agent with MCP tools and return the text response."""
-    command = "uv"
-    args = ["run", "fastmcp", "run", "./nps_mcp_server.py"]
-    env = {**os.environ, "NPS_API_KEY": os.environ.get("NPS_API_KEY", "")}
-    async with MCPServerStdio(params={"command": command, "args": args, "env": env}) as mcp_server:
-        # Configure OpenAI-compatible endpoint
-        async_client = AsyncClient(
-            base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-            api_key=os.environ.get("OPENAI_API_KEY", ""),
-        )
-        set_default_openai_client(client=async_client)
-
-        # Create the agent
-        agent = Agent(
-            name="NPS Agent",
-            instructions=AGENT_INSTRUCTIONS,
-            mcp_servers=[mcp_server],
-            model=os.environ.get("OPENAI_MODEL_NAME", "gpt-4o"),
-        )
-
-        # Run the agent
-        result = await Runner.run(agent, prompt)
-        return result.final_output
+# Import shared agent logic from the core module
+from nps_agent_core import run_nps_agent
 
 
 # ---------------------------------------------------------------------------
 # MLflow ResponsesAgent — wraps run_nps_agent into an HTTP API for deployment
 # ---------------------------------------------------------------------------
 class NPSResponsesAgent(ResponsesAgent):
+    """
+    MLflow ResponsesAgent wrapper for the NPS Agent.
+    
+    This class wraps the shared run_nps_agent function to expose it as an
+    HTTP endpoint via MLflow's model serving infrastructure.
+    """
+    
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
         try:
             result = asyncio.run(run_nps_agent(request.input))
@@ -64,6 +49,7 @@ class NPSResponsesAgent(ResponsesAgent):
         return ResponsesAgentResponse(
             output=[self.create_text_output_item(text=result, id="msg_1")]
         )
+
 
 # ---------------------------------------------------------------------------
 # MLflow model registration

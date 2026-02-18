@@ -9,12 +9,17 @@ The agent logic is identical to the [Evaluate notebook](../1_develop/2_evaluate.
 | File | Purpose |
 |---|---|
 | [`deploy.ipynb`](./deploy.ipynb) | Step-by-step deployment notebook |
-| [`npsagent.py`](./npsagent.py) | Agent + MLflow `ResponsesAgent` wrapper for HTTP serving |
-| [`nps_mcp_server.py`](./nps_mcp_server.py) | FastMCP server exposing NPS API tools (spawned on-demand per request) |
+| [`npsagent.py`](./npsagent.py) | MLflow `ResponsesAgent` wrapper (imports from shared core) |
 | [`app.sh`](./app.sh) | Container entry point — packages the agent and starts `mlflow models serve` |
-| [`requirements.txt`](./requirements.txt) | Python dependencies for the s2i build |
 | [`nps-agent.yaml`](./nps-agent.yaml) | OpenShift Template (BuildConfig, Deployment, Service, Route) |
-| [`.s2i/environment`](./.s2i/environment) | Tells s2i to use `app.sh` as the startup script |
+
+### Shared Files (repo root)
+
+| File | Purpose |
+|---|---|
+| [`../nps_agent_core.py`](../nps_agent_core.py) | Shared agent logic (used by both develop and deploy) |
+| [`../nps_mcp_server.py`](../nps_mcp_server.py) | FastMCP server exposing NPS API tools |
+| [`../requirements.txt`](../requirements.txt) | Python dependencies (shared across all stages) |
 
 ## Prerequisites
 
